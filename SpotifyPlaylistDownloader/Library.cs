@@ -13,6 +13,7 @@ namespace SpotifyPlaylistDownloader
 {
 	internal class Library
 	{
+		// regex removing "featuring" in an effort to improve results
 		private static readonly Regex _sanitizeTitleRegex = new Regex(@"\((feat|ft|featuring).+?\)");
 		private static readonly HashSet<string> _extensions = new HashSet<string>()
 		{
@@ -21,10 +22,12 @@ namespace SpotifyPlaylistDownloader
 		};
 
 		private List<LibraryFile> _files = new List<LibraryFile>();
+		private Config _config;
 		private Dictionary<string, LibraryFile> _cachedFiles = new Dictionary<string, LibraryFile>();
 
 		public LibraryFile? Find(PlaylistItem item)
 		{
+			// try to find an exact match for this file
 			var exactMatch = _files.FirstOrDefault(f =>
 				string.Equals(f.Title, item.Title, StringComparison.CurrentCultureIgnoreCase) &&
 				string.Equals(f.Album, item.Album, StringComparison.CurrentCultureIgnoreCase) &&
@@ -35,6 +38,7 @@ namespace SpotifyPlaylistDownloader
 				return exactMatch;
 			}
 
+			// do a fuzzy text match
 			var comp = $"{string.Join(", ", item.Artists)} - {item.Title}";
 			var compSingle = $"{item.Artists.FirstOrDefault()} - {item.Title}";
 
@@ -46,16 +50,17 @@ namespace SpotifyPlaylistDownloader
 						(f, Fuzz.Ratio($"{f.Artists.FirstOrDefault()} - {f.TitleSanitized}", compSingle))
 					};
 				})
-				.Where(f => f.Item2 > 70)
+				.Where(f => f.Item2 > _config.LibraryDetectionThreshold)
 				.OrderBy(f => Math.Abs(f.f.Length - (item.LengthMs / 1000)))
 				.ThenByDescending(f => f.Item2)
 				.Select(f => f.f)
 				.FirstOrDefault();
 		}
 
-		public Library(params string[] libraryPaths)
+		public Library(Config config, params string[] libraryPaths)
 		{
-			Console.WriteLine("Assembling existing music library");
+			_config = config;
+			Logger.Write("Assembling existing music library");
 
 			if(System.IO.File.Exists(".cache.json"))
 			{
@@ -65,7 +70,7 @@ namespace SpotifyPlaylistDownloader
 					_cachedFiles[f.Filename] = f;
 				}
 
-				Console.WriteLine($"Loaded {_cachedFiles.Count} files from cache");
+				Logger.Write($"Loaded {_cachedFiles.Count} files from cache");
 			}
 
 			foreach(var dir in libraryPaths)
@@ -73,7 +78,7 @@ namespace SpotifyPlaylistDownloader
 				ParseDirectory(dir);
 			}
 
-			Console.WriteLine($"Found {_files.Count} tracks in existing music library");
+			Logger.Write($"Found {_files.Count} tracks in existing music library");
 
 			// write cache
 			System.IO.File.WriteAllText(".cache.json", JsonConvert.SerializeObject(_files));
@@ -83,6 +88,7 @@ namespace SpotifyPlaylistDownloader
 		{
 			foreach(var d in Directory.EnumerateDirectories(directory))
 			{
+				// recurse
 				ParseDirectory(d);
 			}
 
@@ -110,6 +116,7 @@ namespace SpotifyPlaylistDownloader
 							continue;
 						}
 
+						// add info from tags to library
 						_files.Add(new LibraryFile()
 						{
 							Filename = fullFilename,

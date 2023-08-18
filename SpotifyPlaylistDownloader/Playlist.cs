@@ -1,11 +1,6 @@
-﻿using Soulseek;
-using SpotifyAPI.Web;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using SpotifyAPI.Web;
+using SpotifyPlaylistDownloader.Providers;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace SpotifyPlaylistDownloader
 {
@@ -38,25 +33,13 @@ namespace SpotifyPlaylistDownloader
 				}
 			}
 
-			Console.WriteLine($"Found {items.Count} items on playlist");
+			Logger.Write($"Found {items.Count} items on playlist");
 			return new Playlist(items);
 		}
 
-		public IEnumerable<ITrackProvider> CreateProviders(Library library, SoulseekClient client)
+		public IEnumerable<PlaylistItem> GetItems()
 		{
-			foreach(var item in _items)
-			{
-				var libraryFile = library.Find(item);
-				if(libraryFile != null)
-				{
-					Console.WriteLine($"Found {string.Join(", ", libraryFile.Artists)} - {libraryFile.Title} in library already");
-					yield return new LibraryTrackProvider(libraryFile);
-				}
-				else
-				{
-					yield return new SoulseekTrackProvider(client, item);
-				}
-			}
+			return _items;
 		}
 
 		private Playlist(List<PlaylistItem> items)
@@ -76,5 +59,29 @@ namespace SpotifyPlaylistDownloader
 		public string SpotifyId;
 		public int LengthMs;
 		public int TrackNumber;
+
+		private ITrackProvider? _provider;
+
+		public async Task<ITrackProvider?> GetProvider(Context context)
+		{
+			if(_provider != null)
+			{
+				return _provider;
+			}
+
+			var result = await LibraryTrackProvider.Resolve(this, context);
+			if(result.Success)
+			{
+				return _provider = result.Provider;
+			}
+
+			result = await SoulseekTrackProvider.Resolve(this, context);
+			if(result.Success)
+			{
+				return _provider = result.Provider;
+			}
+
+			return null;
+		}
 	}
 }

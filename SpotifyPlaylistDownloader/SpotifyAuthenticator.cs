@@ -1,14 +1,11 @@
 ﻿using SpotifyAPI.Web;
 using SpotifyAPI.Web.Auth;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace SpotifyPlaylistDownloader
 {
+	// handles logging in with spotify and obtaining playlist info
+	// there's no unauthenticated spotify web api unfortunately
 	internal class SpotifyAuthenticator
 	{
 		private static readonly Regex _idRegex = new Regex("^[A-Za-z0-9]+$");
@@ -75,7 +72,7 @@ namespace SpotifyPlaylistDownloader
 		private async Task _server_ErrorReceived(object sender, string error, string? state)
 		{
 			await _server.Stop();
-			Console.WriteLine($"Aborting authorization, error received: {error}");
+			Logger.Write($"Aborting authorization, error received: {error}");
 
 			_wait.Set();
 		}

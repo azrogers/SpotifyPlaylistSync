@@ -1,9 +1,4 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SpotifyPlaylistDownloader
 {
@@ -13,12 +8,12 @@ namespace SpotifyPlaylistDownloader
 		{
 			get
 			{
-				if(_instance == null && File.Exists(".settings.json"))
+				if (_instance == null && File.Exists(".settings.json"))
 				{
 					_instance = JsonConvert.DeserializeObject<SavedSettings>(File.ReadAllText(".settings.json"));
 				}
 
-				if(_instance == null)
+				if (_instance == null)
 				{
 					_instance = new SavedSettings();
 				}
