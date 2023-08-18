@@ -1,7 +1,0 @@
-﻿- login with spotify account
-- list playlists
-- generate a playlist with slots to be filled
-- fill those slots with local files
-- find slots not filled on soulseek
-- download those files
-- fill those slots with those files

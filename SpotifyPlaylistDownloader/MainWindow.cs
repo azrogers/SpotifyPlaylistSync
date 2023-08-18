@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using Terminal.Gui;
 using System.Threading.Tasks;
+using SpotifyPlaylistDownloader.Providers;
 
 namespace SpotifyPlaylistDownloader
 {
@@ -74,7 +75,7 @@ namespace SpotifyPlaylistDownloader
 
 			Add(mainView, _sidebar);
 
-			Run(config, input);
+			Run(config, input).Ignore();
 		}
 
 		private void UpdateDownloads(View showBelow)
@@ -146,26 +147,63 @@ namespace SpotifyPlaylistDownloader
 			}
 
 			var items = playlist.GetItems().ToArray();
+			var providers = new List<ITrackProvider?>();
+			var slots = new Task<ITrackProvider?>?[config.MaxDownloads];
+			_progressLabel.Text = $"Finished 0/{items.Length}";
 
 			var finished = 0;
-			var providerTasks = items.Select(async p => {
-				var provider = await p.GetProvider(context);
-				finished++;
-				if (provider == null)
-				{ 
-					Logger.Write($"Can't find {p.Title}");
-				}
-
-				Application.MainLoop.Invoke(() =>
+			var nextI = 0;
+			await Task.Run(() =>
+			{
+				while(finished < items.Length)
 				{
-					_progressLabel.Text = $"Finished {finished}/{items.Length}";
-					_progressBar.Fraction = Math.Clamp(finished / (float)items.Length, 0, 1);
-				});
+					for(var i = 0; i < slots.Length; i++)
+					{
+						var slot = slots[i];
+						if(slot != null && !slot.IsCompleted)
+						{
+							// still working
+							continue;
+						}
+						else if(slot != null && slot.IsCompleted)
+						{
+							// we're finished, add provider if we have it
+							if (slot.Result != null)
+							{
+								providers.Add(slot.Result);
+							}
 
-				return provider;
+							finished++;
+							slots[i] = null;
+
+							Application.MainLoop.Invoke(() =>
+							{
+								_progressLabel.Text = $"Finished {finished}/{items.Length}";
+								_progressBar.Fraction = Math.Clamp(finished / (float)items.Length, 0, 1);
+							});
+						}
+
+						if(nextI >= items.Length)
+						{
+							continue;
+						}
+
+						// start a new download
+						var index = nextI++;
+						slots[i] = Task.Run(async () =>
+						{
+							var provider = await items[index].GetProvider(context);
+							if(provider == null)
+							{
+								Logger.Write($"Can't find {items[index].Title}");
+							}
+							return provider;
+						});
+					}
+
+					Thread.Sleep(100);
+				}
 			});
-
-			var providers = await Task.WhenAll(providerTasks);
 
 			Application.MainLoop.Invoke(() =>
 			{
@@ -202,6 +240,7 @@ namespace SpotifyPlaylistDownloader
 			}
 
 			Logger.Write("Wrote playlist to playlist.pls");
+			Logger.Write("Done!");
 		}
 	}
 }

@@ -13,8 +13,6 @@ namespace SpotifyPlaylistDownloader
 {
 	internal class Library
 	{
-		// regex removing "featuring" in an effort to improve results
-		private static readonly Regex _sanitizeTitleRegex = new Regex(@"\((feat|ft|featuring).+?\)");
 		private static readonly HashSet<string> _extensions = new HashSet<string>()
 		{
 			".mp3", ".ogg", ".flac", ".wav", ".wma", ".m4a", ".mp4", ".aac",
@@ -42,15 +40,17 @@ namespace SpotifyPlaylistDownloader
 			var comp = $"{string.Join(", ", item.Artists)} - {item.Title}";
 			var compSingle = $"{item.Artists.FirstOrDefault()} - {item.Title}";
 
-			return _files.SelectMany(f =>
+			return _files
+				.Where(f => !string.IsNullOrWhiteSpace(f.Title) && f.Artists.Length > 0)
+				.SelectMany(f =>
 				{
 					return new[] {
-						(f, Fuzz.Ratio($"{string.Join(", ", f.Artists)} - {f.Title}", comp)),
-						(f, Fuzz.Ratio($"{string.Join(", ", f.Artists)} - {f.TitleSanitized}", comp)),
-						(f, Fuzz.Ratio($"{f.Artists.FirstOrDefault()} - {f.TitleSanitized}", compSingle))
+						(f, Fuzz.PartialRatio($"{string.Join(", ", f.Artists)} - {f.Title}", comp), _config.PartialRatioDetectionThreshold),
+						(f, Fuzz.Ratio($"{string.Join(", ", f.Artists)} - {f.TitleSanitized}", comp), _config.LibraryDetectionThreshold),
+						(f, Fuzz.Ratio($"{f.Artists.FirstOrDefault()} - {f.TitleSanitized}", compSingle), _config.LibraryDetectionThreshold)
 					};
 				})
-				.Where(f => f.Item2 > _config.LibraryDetectionThreshold)
+				.Where(f => f.Item2 > f.Item3)
 				.OrderBy(f => Math.Abs(f.f.Length - (item.LengthMs / 1000)))
 				.ThenByDescending(f => f.Item2)
 				.Select(f => f.f)
@@ -123,7 +123,6 @@ namespace SpotifyPlaylistDownloader
 							Artists = file.Tag.Performers.Any() ? file.Tag.Performers : file.Tag.AlbumArtists,
 							Album = file.Tag.Album,
 							Title = file.Tag.Title,
-							TitleSanitized = _sanitizeTitleRegex.Replace(file.Tag.Title ?? "", "").Trim(),
 							Length = (int)file.Properties.Duration.TotalSeconds
 						});
 					}
@@ -141,7 +140,7 @@ namespace SpotifyPlaylistDownloader
 			public string[] Artists;
 			public string Album;
 			public string Title;
-			public string TitleSanitized;
+			public string TitleSanitized => Util.SanitizeTrackTitle(Title ?? "");
 			public int Length;
 		}
 	}

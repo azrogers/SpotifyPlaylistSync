@@ -50,10 +50,8 @@ namespace SpotifyPlaylistDownloader
 
 	internal class PlaylistItem
 	{
-		private static readonly Regex _versionTitleRegex = new Regex(@"-\s+(.+?)[Vv]ersion");
-
 		public string Title;
-		public string TitleSanitized => _versionTitleRegex.Replace(Title, "");
+		public string TitleSanitized => Util.SanitizeTrackTitle(Title);
 		public string[] Artists;
 		public string Album;
 		public string SpotifyId;
@@ -64,6 +62,8 @@ namespace SpotifyPlaylistDownloader
 
 		public async Task<ITrackProvider?> GetProvider(Context context)
 		{
+			Logger.Write($"Resolving {string.Join(", ", Artists)} - {Title}");
+
 			if(_provider != null)
 			{
 				return _provider;
